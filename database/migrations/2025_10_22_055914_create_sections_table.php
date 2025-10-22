@@ -9,8 +9,11 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('sections', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('church_id')->constrained()->onDelete('cascade');
+            $table->uuid('id')->primary();
+            $table->uuid('church_id');
+            $table->foreign('church_id')
+                ->references('id')->on('churches')
+                ->onDelete('cascade');
             $table->string('name');
             $table->timestamps();
         });

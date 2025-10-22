@@ -8,15 +8,13 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('payments', function (Blueprint $table) {
-            $table->id();
-            $table->foreignUuid('requisition_id')->constrained()->onDelete('cascade')->unique();
-            $table->decimal('amount_paid', 10, 2);
-            $table->enum('payment_method', ['Bank Transfer', 'Cash', 'Cheque']);
-            $table->date('payment_date');
-            $table->string('reference_number')->nullable();
-            $table->json('proof_file')->nullable();
-            $table->foreignId('recorded_by_id')->constrained('users')->onDelete('cascade');
+        Schema::create('audit_logs', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->foreignUuid('user_id')->constrained('users')->onDelete('cascade');
+            $table->foreignUuid('church_id')->constrained('churches')->onDelete('cascade');
+            $table->foreignUuid('requisition_id')->nullable()->constrained('requisitions')->onDelete('set null');
+            $table->string('action');
+            $table->text('details')->nullable();
             $table->timestamp('timestamp')->useCurrent();
             $table->timestamps();
         });
@@ -24,6 +22,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('payments');
+        Schema::dropIfExists('audit_logs');
     }
 };

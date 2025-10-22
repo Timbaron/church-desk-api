@@ -5,7 +5,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\RequisitionController;
 use App\Http\Controllers\Api\ChurchController;
 use App\Http\Controllers\Api\ReportingController;
-use App\Http\Controllers\Api\AuditController; // <-- Added AuditController
+use App\Http\Controllers\Api\AuditController;
 use App\Http\Controllers\Api\AuditlogController;
 use Illuminate\Http\Request;
 
