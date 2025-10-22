@@ -1,19 +1,19 @@
 # The Render Blueprint defines your infrastructure as code.
 # Place this file in the root of your repository.
 ---
-# 1. PostgreSQL Database Service
+# 1. PostgreSQL Database Service (Type must be 'database')
 services:
-  - type: pserv
+  - type: database
     name: church-desk-db
     plan: starter # Starter plan is generally sufficient for development/testing
 
 # 2. Laravel Web Service
   - type: web
     name: church-desk-api
-    env: php
+    runtime: php
     plan: starter
     # Connects to your GitHub repository
-    repo: https://github.com/timbaron/church-desk-api # <-- UPDATED REPO URL
+    repo: https://github.com/timbaron/church-desk-api
     branch: main
 
     # Render's default PHP environment uses Nginx/PHP-FPM.
@@ -37,7 +37,7 @@ services:
       # Database connection variables, templated from the PostgreSQL service above
       - key: DATABASE_URL
         fromService:
-          type: pserv
+          type: database # <-- FIX: Changed 'pserv' to 'database'
           name: finance-requisition-db
           property: connectionString
 
