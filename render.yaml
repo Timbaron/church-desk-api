@@ -3,7 +3,7 @@
 ---
 # 1. PostgreSQL Database Service (Type must be 'database')
 services:
-  - type: postgres
+  - type: pserv
     name: church-desk-db
     plan: starter # Starter plan is generally sufficient for development/testing
     ipAllowlist:
@@ -40,7 +40,7 @@ services:
       # Database connection variables, templated from the PostgreSQL service above
       - key: DATABASE_URL
         fromService:
-          type: postgres # <-- FIX: Changed 'pserv' to 'database'
+          type: pserv # <-- FIX: Changed 'pserv' to 'database'
           name: finance-requisition-db
           property: connectionString
 
