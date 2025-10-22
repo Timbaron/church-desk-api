@@ -3,9 +3,12 @@
 ---
 # 1. PostgreSQL Database Service (Type must be 'database')
 services:
-  - type: database
+  - type: postgres
     name: church-desk-db
     plan: starter # Starter plan is generally sufficient for development/testing
+    ipAllowlist:
+      - source: egress
+        service: church-desk-api
 
 # 2. Laravel Web Service
   - type: web
@@ -37,7 +40,7 @@ services:
       # Database connection variables, templated from the PostgreSQL service above
       - key: DATABASE_URL
         fromService:
-          type: database # <-- FIX: Changed 'pserv' to 'database'
+          type: postgres # <-- FIX: Changed 'pserv' to 'database'
           name: finance-requisition-db
           property: connectionString
 
