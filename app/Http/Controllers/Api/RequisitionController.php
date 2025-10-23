@@ -18,8 +18,6 @@ class RequisitionController extends Controller
 
     public function __construct(RequisitionService $requisitionService)
     {
-        // Apply middleware to ensure user is authenticated
-        $this->middleware('auth:sanctum');
         $this->requisitionService = $requisitionService;
     }
 

@@ -12,7 +12,6 @@ class AuditlogController extends Controller
     public function __construct()
     {
         // All audit routes require authentication
-        $this->middleware('auth:sanctum');
     }
 
     /**
