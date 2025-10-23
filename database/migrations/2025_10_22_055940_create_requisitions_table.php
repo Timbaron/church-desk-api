@@ -11,10 +11,10 @@ return new class extends Migration
         Schema::create('requisitions', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->string('title');
-            $table->foreignId('requested_by_id')->constrained('users')->onDelete('cascade');
-            $table->foreignId('department_id')->constrained()->onDelete('cascade');
-            $table->foreignId('section_id')->constrained()->onDelete('cascade');
-            $table->foreignId('church_id')->constrained()->onDelete('cascade');
+            $table->foreignUuid('requested_by_id')->constrained('users')->onDelete('cascade');
+            $table->foreignUuid('department_id')->constrained()->onDelete('cascade');
+            $table->foreignUuid('section_id')->constrained()->onDelete('cascade');
+            $table->foreignUuid('church_id')->constrained()->onDelete('cascade');
             $table->decimal('amount_requested', 10, 2);
             $table->string('category');
             $table->text('purpose');

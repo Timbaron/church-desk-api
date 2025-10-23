@@ -1,0 +1,69 @@
+# The Render Blueprint defines your infrastructure as code.
+# Place this file in the root of your repository.
+---
+# 1. PostgreSQL Database Service (Type must be 'database')
+services:
+  - type: pserv
+    name: church-desk-db
+    plan: starter # Starter plan is generally sufficient for development/testing
+    ipAllowlist:
+      - source: egress
+        service: church-desk-api
+
+# 2. Laravel Web Service
+  - type: web
+    name: church-desk-api
+    runtime: php
+    plan: starter
+    # Connects to your GitHub repository
+    repo: https://github.com/timbaron/church-desk-api
+    branch: main
+
+    # Render's default PHP environment uses Nginx/PHP-FPM.
+    # We must ensure PHP dependencies are installed and the application is secured.
+    buildCommand: |
+      composer install --no-dev
+      npm install
+      npm run build # If you use Vite/Mix for assets
+
+    # The start command runs your deployment steps (migrations, cache clear)
+    # and then starts the web server.
+    startCommand: |
+      php artisan migrate --force
+      php artisan storage:link
+      php artisan config:cache
+      php artisan route:cache
+      vendor/bin/heroku-php-apache2 public/
+
+    # Environment Variables
+    envVars:
+      # Database connection variables, templated from the PostgreSQL service above
+      - key: DATABASE_URL
+        fromService:
+          type: pserv # <-- FIX: Changed 'pserv' to 'database'
+          name: finance-requisition-db
+          property: connectionString
+
+      # Laravel Environment Mapping (Render provides DATABASE_URL, Laravel uses DB_*)
+      - key: DB_CONNECTION
+        value: pgsql # Using PostgreSQL for Render deployment
+      - key: DB_HOST
+        value: ${DATABASE_URL.host}
+      - key: DB_DATABASE
+        value: ${DATABASE_URL.database}
+      - key: DB_USERNAME
+        value: ${DATABASE_URL.username}
+      - key: DB_PASSWORD
+        value: ${DATABASE_URL.password}
+
+      # Application Settings
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: false
+      - key: APP_URL
+        value: https://${RENDER_EXTERNAL_HOSTNAME}
+      - key: APP_KEY
+        generateValue: true # Render will automatically generate a secure key
+      - key: API_BASE_URL
+        value: /api

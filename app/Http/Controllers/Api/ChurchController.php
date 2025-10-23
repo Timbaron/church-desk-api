@@ -15,7 +15,6 @@ class ChurchController extends Controller
 
     public function __construct(ChurchService $churchService)
     {
-        $this->middleware('auth:sanctum');
         $this->churchService = $churchService;
     }
 

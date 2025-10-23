@@ -14,7 +14,6 @@ class ReportingController extends Controller
 
     public function __construct(ReportingService $reportingService)
     {
-        $this->middleware('auth:sanctum');
         $this->reportingService = $reportingService;
     }
 

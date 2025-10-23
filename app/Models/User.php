@@ -13,7 +13,7 @@ use Laravel\Sanctum\HasApiTokens;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, HasApiTokens;
 
     /**
      * The attributes that are mass assignable.
@@ -29,6 +29,23 @@ class User extends Authenticatable
         'section_id',
         'department_id',
     ];
+
+    // Disable auto-incrementing since UUIDs are used.
+    public $incrementing = false;
+    // 2. Tell Eloquent the primary key type is a string (UUID).
+    protected $keyType = 'string';
+    protected static function boot()
+    {
+        parent::boot();
+
+        // When a model is being created, check if the ID is empty.
+        // If it is, automatically assign a new UUID string to the ID field.
+        static::creating(function ($model) {
+            if (empty($model->{$model->getKeyName()})) {
+                $model->{$model->getKeyName()} = (string) \Illuminate\Support\Str::uuid();
+            }
+        });
+    }
 
     /**
      * The attributes that should be hidden for serialization.

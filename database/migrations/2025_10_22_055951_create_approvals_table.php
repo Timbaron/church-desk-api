@@ -9,9 +9,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('approvals', function (Blueprint $table) {
-            $table->id();
+            $table->uuid('id')->primary();
             $table->foreignUuid('requisition_id')->constrained()->onDelete('cascade');
-            $table->foreignId('approver_id')->constrained('users')->onDelete('cascade');
+            $table->foreignUuid('approver_id')->constrained('users')->onDelete('cascade');
             $table->enum('status', ['APPROVED', 'REJECTED', 'REQUESTED_CHANGES']);
             $table->text('comments')->nullable();
             $table->timestamp('timestamp')->useCurrent();

@@ -16,7 +16,7 @@ class ChurchService
      * @param User $user
      * @return Church
      */
-    public function getChurch(int $churchId, User $user): Church
+    public function getChurch(string $churchId, User $user): Church
     {
         if ($user->church_id !== $churchId && $user->role !== 'App Owner') {
             throw new \Exception('Access denied to this church data.');
