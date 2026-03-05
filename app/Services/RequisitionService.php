@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Models\Requisition;
 use App\Models\User;
+use App\Notifications\RequisitionActionNotification;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
 
 class RequisitionService
@@ -81,6 +83,19 @@ class RequisitionService
         // Log the creation
         AuditLogService::log($user, 'REQUISITION_CREATED', 'New requisition created: ' . $requisition->title, $requisition->id);
 
+        // Notify Department Heads
+        $deptHeads = User::where('department_id', $requisition->department_id)
+            ->where('role', 'Department Head')
+            ->get();
+            
+        if ($deptHeads->isNotEmpty()) {
+            Notification::send($deptHeads, new RequisitionActionNotification(
+                $requisition,
+                'New Requisition Submitted',
+                "{$user->name} has submitted a new requisition that requires your approval."
+            ));
+        }
+
         return $requisition;
     }
 
@@ -96,17 +111,25 @@ class RequisitionService
     public function processWorkflowAction(Requisition $requisition, User $user, string $action, string $comments = null): Requisition
     {
         return DB::transaction(function () use ($requisition, $user, $action, $comments) {
-            // Determine the required status for approval/rejection
+            // Determine the required role for approval/rejection
             $requiredRole = $requisition->status === 'Pending' ? 'Department Head' : ($requisition->status === 'Approved by Dept. Head' ? 'Section President' : null);
 
             if (!$requiredRole || $user->role !== $requiredRole) {
                 throw ValidationException::withMessages(['action' => 'You do not have the required role or the requisition is not in the correct status for your approval.']);
             }
 
-            // Create Approval Log
+            // Map incoming action to enum values expected by the approvals table
+            $status = match(strtoupper($action)) {
+                'APPROVE' => 'APPROVED',
+                'REJECT' => 'REJECTED',
+                'REQUEST_CHANGES' => 'REQUESTED_CHANGES',
+                default => strtoupper($action),
+            };
+
+            // Create Approval Log using the mapped status
             $requisition->approvals()->create([
                 'approver_id' => $user->id,
-                'status' => $action,
+                'status' => $status,
                 'comments' => $comments,
             ]);
 
@@ -123,6 +146,41 @@ class RequisitionService
 
             // Log the action
             AuditLogService::log($user, 'REQUISITION_WORKFLOW', "Requisition {$action} by {$requiredRole}", $requisition->id);
+
+            // Notify relevant parties
+            $requester = $requisition->requestedBy;
+            
+            if ($action === 'APPROVE') {
+                if ($requiredRole === 'Department Head') {
+                    // Notify Requester
+                    if ($requester) $requester->notify(new RequisitionActionNotification($requisition, 'Requisition Approved by Dept Head', 'Your requisition has been approved by the Department Head.'));
+                    
+                    // Notify Section Presidents
+                    $sectionPresidents = User::where('section_id', $requisition->section_id)
+                        ->where('role', 'Section President')
+                        ->get();
+                    if ($sectionPresidents->isNotEmpty()) {
+                        Notification::send($sectionPresidents, new RequisitionActionNotification($requisition, 'Requisition Pending Your Approval', 'A requisition has been approved by the Department Head and now requires your approval.'));
+                    }
+                } elseif ($requiredRole === 'Section President') {
+                    // Notify Requester
+                    if ($requester) $requester->notify(new RequisitionActionNotification($requisition, 'Requisition Fully Approved', 'Your requisition has been fully approved by the Section President.'));
+                    
+                    // Notify Finance
+                    $finances = User::where('church_id', $requisition->church_id)
+                        ->where('role', 'Finance')
+                        ->get();
+                    if ($finances->isNotEmpty()) {
+                        Notification::send($finances, new RequisitionActionNotification($requisition, 'Requisition Ready for Disbursement', 'A requisition has been fully approved and is awaiting payment disbursement.'));
+                    }
+                }
+            } else {
+                // REJECT or REQUEST_CHANGES -> Notify Requester
+                $actionText = $action === 'REJECT' ? 'rejected' : 'returned for changes';
+                if ($requester) {
+                    $requester->notify(new RequisitionActionNotification($requisition, "Requisition " . ucfirst($actionText), "Your requisition was {$actionText} by the {$requiredRole}. Comments: " . ($comments ?? 'None')));
+                }
+            }
 
             return $requisition->fresh(['approvals']);
         });
@@ -172,7 +230,12 @@ class RequisitionService
 
             AuditLogService::log($user, 'PAYMENT_DISBURSED', 'Payment disbursed for requisition.', $requisition->id);
 
-            return $requisition->fresh(['payment']);
+            // Notify Requester
+            if ($requisition->requestedBy) {
+                $requisition->requestedBy->notify(new RequisitionActionNotification($requisition, 'Payment Disbursed', "Payment has been disbursed for your requisition. Please upload the receipt once available. Method: {$paymentDetails['payment_method']}"));
+            }
+
+            return $requisition->fresh(['payment'])->with('approvals');
         });
     }
 
@@ -201,6 +264,15 @@ class RequisitionService
 
         AuditLogService::log($user, 'RECEIPT_UPLOADED', 'Final receipt uploaded.', $requisition->id);
 
+        // Notify Finance and Auditors
+        $financeAndAuditors = User::where('church_id', $requisition->church_id)
+            ->whereIn('role', ['Finance', 'Auditor'])
+            ->get();
+            
+        if ($financeAndAuditors->isNotEmpty()) {
+             Notification::send($financeAndAuditors, new RequisitionActionNotification($requisition, 'Receipt Uploaded', "The final receipt for requisition '{$requisition->title}' has been uploaded and is pending verification."));
+        }
+
         return $requisition;
     }
 
@@ -226,6 +298,12 @@ class RequisitionService
         $requisition->save();
 
         AuditLogService::log($user, 'RECEIPT_VERIFIED', "Receipt verification: {$action}. {$comments}", $requisition->id);
+
+        // Notify Requester
+        if ($requisition->requestedBy) {
+            $statusText = $action === 'VERIFY' ? 'verified successfully' : 'returned for corrections';
+            $requisition->requestedBy->notify(new RequisitionActionNotification($requisition, 'Receipt Review', "Your uploaded receipt was {$statusText}. Comments: " . ($comments ?? 'None')));
+        }
 
         return $requisition;
     }

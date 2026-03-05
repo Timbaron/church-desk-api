@@ -26,26 +26,26 @@ class DisbursePaymentRequest extends FormRequest
         return [
             // Corresponds to the 'paymentDetails' object in the request body
             'paymentDetails' => ['required', 'array'],
-            'paymentDetails.amountPaid' => ['required', 'numeric', 'min:0.01'],
-            'paymentDetails.paymentMethod' => [
+            'paymentDetails.amount_paid' => ['required', 'numeric', 'min:0.01'],
+            'paymentDetails.payment_method' => [
                 'required',
                 'string',
                 // Validates against the PaymentMethod Enum
                 'in:' . implode(',', array_column(PaymentMethod::cases(), 'value'))
             ],
-            'paymentDetails.paymentDate' => [
+            'paymentDetails.payment_date' => [
                 'required',
                 'date_format:Y-m-d'
             ],
-            'paymentDetails.referenceNumber' => [
+            'paymentDetails.reference_number' => [
                 'nullable',
                 'string',
                 'max:255'
             ],
             // Mock validation for potential file attachment object
-            'paymentDetails.proofFile' => ['nullable', 'array'],
-            'paymentDetails.proofFile.name' => ['nullable', 'string'],
-            'paymentDetails.proofFile.url' => ['nullable', 'string'],
+            'paymentDetails.proof_file' => ['nullable', 'array'],
+            'paymentDetails.proof_file.name' => ['nullable', 'string'],
+            'paymentDetails.proof_file.url' => ['nullable', 'string'],
         ];
     }
 }

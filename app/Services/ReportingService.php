@@ -29,8 +29,8 @@ class ReportingService
 
         return [
             'balance' => round($balance, 2),
-            'totalInflow' => round($totalInflow, 2),
-            'totalOutflow' => round($outflow, 2),
+            'total_inflow' => round($totalInflow, 2),
+            'total_outflow' => round($outflow, 2),
         ];
     }
 
@@ -56,10 +56,10 @@ class ReportingService
         $totalDisbursed = $section->requisitions()->whereHas('payment')->sum('amount_requested');
 
         return [
-            'awaitingDisbursement' => $awaitingDisbursement,
-            'pendingVerification' => $pendingVerification,
-            'recentlyCompleted' => $recentlyCompleted,
-            'totalDisbursed' => round($totalDisbursed, 2),
+            'awaiting_disbursement' => $awaitingDisbursement,
+            'pending_verification' => $pendingVerification,
+            'recently_completed' => $recentlyCompleted,
+            'total_disbursed' => round($totalDisbursed, 2),
         ];
     }
 
@@ -87,12 +87,12 @@ class ReportingService
 
         return [
             'churches' => Church::with('sections')->get(),
-            'totalUsers' => $totalUsers,
-            'totalRequisitions' => $totalRequisitions,
-            'totalAmountRequested' => round($totalAmountRequested, 2),
-            'requisitionStatusCounts' => $requisitionStatusCounts,
-            'subscriptionStatusCounts' => $subscriptionStatusCounts,
-            'recentActivities' => $recentActivities,
+            'total_users' => $totalUsers,
+            'total_requisitions' => $totalRequisitions,
+            'total_amount_requested' => round($totalAmountRequested, 2),
+            'requisition_status_counts' => $requisitionStatusCounts,
+            'subscription_status_counts' => $subscriptionStatusCounts,
+            'recent_activities' => $recentActivities,
         ];
     }
 }
