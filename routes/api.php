@@ -36,32 +36,53 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{requisition}', [RequisitionController::class, 'show']); // Get single requisition
         Route::put('/{requisition}', [RequisitionController::class, 'update']); // Update requisition details
 
-        // WORKFLOW & APPROVALS
-        Route::post('/{requisition}/action', [RequisitionController::class, 'processAction']); // Approve/Reject/Request Changes
-        Route::post('/{requisition}/disburse', [RequisitionController::class, 'disburse']); // Finance disbursement
-        Route::post('/{requisition}/upload-receipt', [RequisitionController::class, 'uploadReceipt']); // Requester uploads final receipt
-        Route::post('/{requisition}/verify-receipt', [RequisitionController::class, 'verifyReceipt']); // Auditor/Finance verifies receipt
+        // WORKFLOW & APPROVALS (Dept Heads, Section Presidents, Finance & Auditors)
+        Route::post('/{requisition}/action', [RequisitionController::class, 'processAction'])
+            ->middleware('role:Department Head,Section President,Finance,Auditor');
+
+        // FINANCE ONLY
+        Route::post('/{requisition}/disburse', [RequisitionController::class, 'disburse'])
+            ->middleware('role:Finance');
+
+        // REQUESTER ONLY (Checks inside service, but base auth is enough for route)
+        Route::post('/{requisition}/upload-receipt', [RequisitionController::class, 'uploadReceipt']);
+
+        // AUDITORS & FINANCE
+        Route::post('/{requisition}/verify-receipt', [RequisitionController::class, 'verifyReceipt'])
+            ->middleware('role:Auditor,Finance');
     });
 
     // CHURCH & USER MANAGEMENT
-    Route::post('/users', [ChurchController::class, 'createUser']); // Create a user (Admin only)
+    Route::post('/users', [ChurchController::class, 'createUser'])
+        ->middleware('role:Super Admin,App Owner');
 
     Route::prefix('churches')->group(function () {
         Route::get('/{church}', [ChurchController::class, 'show']); // Get church details
         Route::get('/{church}/users', [ChurchController::class, 'getUsers']); // Get users in church
-        Route::post('/{church}/sections', [ChurchController::class, 'createSection']); // Create a new section
-        Route::post('/{church}/extend-subscription', [ChurchController::class, 'extendSubscription']); // Extend subscription (Admin/App Owner)
-        Route::get('/{church}/audit-logs', [ChurchController::class, 'getAuditLogs']); // Get audit logs for a specific church
+        Route::post('/{church}/sections', [ChurchController::class, 'createSection'])
+            ->middleware('role:Super Admin,App Owner');
+
+        Route::post('/{church}/extend-subscription', [ChurchController::class, 'extendSubscription'])
+            ->middleware('role:Super Admin,App Owner');
+
+        Route::get('/{church}/audit-logs', [ChurchController::class, 'getAuditLogs'])
+            ->middleware('role:Auditor,Super Admin,App Owner,Finance');
     });
+
+    // DEPARTMENT MANAGEMENT
+    Route::post('/sections/{section}/departments', [ChurchController::class, 'createDepartment'])
+        ->middleware('role:Super Admin,Section President,App Owner');
 
     // AUDIT LOGS ENDPOINTS
     Route::prefix('audit-logs')->group(function () {
-        Route::get('/', [AuditlogController::class, 'index']); // Global view of all logs (Auditor/Super Admin only)
-        Route::get('/{auditLog}', [AuditlogController::class, 'show']); // Single log view
+        Route::get('/', [AuditlogController::class, 'index'])
+            ->middleware('role:Auditor,Super Admin,App Owner');
+        Route::get('/{auditLog}', [AuditlogController::class, 'show']);
     });
 
     // REPORTING & DASHBOARD
-    Route::get('/financial-summary/{section}', [ReportingController::class, 'getFinancialSummary']); // Section-level summary
-    Route::get('/finance-overview/{section}', [ReportingController::class, 'getFinanceOverview']); // Section-level finance overview
-    Route::get('/platform-data', [ReportingController::class, 'getPlatformData']); // Global platform data (App Owner/Super Admin only)
+    Route::get('/financial-summary/{section}', [ReportingController::class, 'getFinancialSummary']);
+    Route::get('/finance-overview/{section}', [ReportingController::class, 'getFinanceOverview']);
+    Route::get('/platform-data', [ReportingController::class, 'getPlatformData'])
+        ->middleware('role:App Owner,Super Admin');
 });

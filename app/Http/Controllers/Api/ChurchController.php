@@ -25,9 +25,9 @@ class ChurchController extends Controller
     {
         try {
             $churchData = $this->churchService->getChurch($church->id, $request->user());
-            return response()->json($churchData);
+            return $this->successResponse($churchData, 'Church details retrieved successfully.');
         } catch (\Exception $e) {
-            return response()->json(['message' => $e->getMessage()], Response::HTTP_FORBIDDEN);
+            return $this->errorResponse($e->getMessage(), Response::HTTP_FORBIDDEN);
         }
     }
 
@@ -37,9 +37,9 @@ class ChurchController extends Controller
     public function getUsers(Church $church, Request $request)
     {
         if ($request->user()->church_id !== $church->id) {
-            return response()->json(['message' => 'Access denied.'], Response::HTTP_FORBIDDEN);
+            return $this->errorResponse('Access denied.', Response::HTTP_FORBIDDEN);
         }
-        return response()->json($church->users()->get());
+        return $this->successResponse($church->users()->get(), 'Users retrieved successfully.');
     }
 
     /**
@@ -51,9 +51,9 @@ class ChurchController extends Controller
 
         try {
             $section = $this->churchService->createSection($church->id, $request->input('name'), $request->user());
-            return response()->json($section, Response::HTTP_CREATED);
+            return $this->successResponse($section, 'Section created successfully.', Response::HTTP_CREATED);
         } catch (\Exception $e) {
-            return response()->json(['message' => $e->getMessage()], Response::HTTP_FORBIDDEN);
+            return $this->errorResponse($e->getMessage(), Response::HTTP_FORBIDDEN);
         }
     }
 
@@ -82,9 +82,9 @@ class ChurchController extends Controller
                 'department_id'
             ]), $request->user());
 
-            return response()->json($user, Response::HTTP_CREATED);
+            return $this->successResponse($user, 'User created successfully.', Response::HTTP_CREATED);
         } catch (\Exception $e) {
-            return response()->json(['message' => $e->getMessage()], Response::HTTP_FORBIDDEN);
+            return $this->errorResponse($e->getMessage(), Response::HTTP_FORBIDDEN);
         }
     }
 
@@ -97,9 +97,24 @@ class ChurchController extends Controller
 
         try {
             $updatedChurch = $this->churchService->extendSubscription($church, $request->input('months'), $request->user());
-            return response()->json($updatedChurch);
+            return $this->successResponse($updatedChurch, 'Subscription extended successfully.');
         } catch (\Exception $e) {
-            return response()->json(['message' => $e->getMessage()], Response::HTTP_FORBIDDEN);
+            return $this->errorResponse($e->getMessage(), Response::HTTP_FORBIDDEN);
+        }
+    }
+
+    /**
+     * POST /sections/{section}/departments - createDepartment
+     */
+    public function createDepartment(\App\Models\Section $section, Request $request)
+    {
+        $request->validate(['name' => ['required', 'string', 'max:255']]);
+
+        try {
+            $department = $this->churchService->createDepartment($section->id, $request->input('name'), $request->user());
+            return $this->successResponse($department, 'Department created successfully.', Response::HTTP_CREATED);
+        } catch (\Exception $e) {
+            return $this->errorResponse($e->getMessage(), Response::HTTP_FORBIDDEN);
         }
     }
 
@@ -110,9 +125,9 @@ class ChurchController extends Controller
     {
         try {
             $logs = $this->churchService->getAuditLogs($church, $request->user());
-            return response()->json($logs);
+            return $this->successResponse($logs, 'Audit logs retrieved successfully.');
         } catch (\Exception $e) {
-            return response()->json(['message' => $e->getMessage()], Response::HTTP_FORBIDDEN);
+            return $this->errorResponse($e->getMessage(), Response::HTTP_FORBIDDEN);
         }
     }
 }

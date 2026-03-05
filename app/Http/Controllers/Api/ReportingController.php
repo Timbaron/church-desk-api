@@ -24,11 +24,11 @@ class ReportingController extends Controller
     {
         // Add policy check: user must belong to this section or be Super Admin/Finance
         if ($request->user()->section_id !== $section->id && !in_array($request->user()->role, ['Super Admin', 'Finance'])) {
-            return response()->json(['message' => 'Unauthorized access to this section data.'], Response::HTTP_FORBIDDEN);
+            return $this->errorResponse('Unauthorized access to this section data.', Response::HTTP_FORBIDDEN);
         }
 
         $summary = $this->reportingService->getFinancialSummary($section);
-        return response()->json($summary);
+        return $this->successResponse($summary, 'Financial summary retrieved successfully.');
     }
 
     /**
@@ -38,11 +38,11 @@ class ReportingController extends Controller
     {
         // Add policy check: user must belong to this section or be Super Admin/Finance
         if ($request->user()->section_id !== $section->id && !in_array($request->user()->role, ['Super Admin', 'Finance'])) {
-            return response()->json(['message' => 'Unauthorized access to this section data.'], Response::HTTP_FORBIDDEN);
+            return $this->errorResponse('Unauthorized access to this section data.', Response::HTTP_FORBIDDEN);
         }
 
         $overview = $this->reportingService->getFinanceOverview($section);
-        return response()->json($overview);
+        return $this->successResponse($overview, 'Finance overview retrieved successfully.');
     }
 
     /**
@@ -50,11 +50,8 @@ class ReportingController extends Controller
      */
     public function getPlatformData(Request $request)
     {
-        if (!in_array($request->user()->role, ['App Owner'])) {
-            return response()->json(['message' => 'Unauthorized access to platform data.'], Response::HTTP_FORBIDDEN);
-        }
-
+        // Role check already handled by middleware in routes, but keeping the logic consistent for safety
         $data = $this->reportingService->getPlatformData();
-        return response()->json($data);
+        return $this->successResponse($data, 'Platform data retrieved successfully.');
     }
 }

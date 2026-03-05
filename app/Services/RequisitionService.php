@@ -96,7 +96,7 @@ class RequisitionService
 
             // Update Requisition Status
             $newStatus = match ($action) {
-                'APPROVE' => $requiredRole === 'Department Head' ? 'Approved by Dept. Head' : 'Awaiting Receipt',
+                'APPROVE' => $requiredRole === 'Department Head' ? 'Approved by Dept. Head' : 'Approved by Section President',
                 'REJECT' => 'Rejected',
                 'REQUEST_CHANGES' => 'Changes Requested',
                 default => throw new \Exception('Invalid workflow action.'),
@@ -110,6 +110,25 @@ class RequisitionService
 
             return $requisition->fresh(['approvals']);
         });
+    }
+
+    /**
+     * Update an existing requisition.
+     * @param Requisition $requisition
+     * @param array $data
+     * @param User $user
+     * @return Requisition
+     */
+    public function updateRequisition(Requisition $requisition, array $data, User $user): Requisition
+    {
+        if ($requisition->requested_by_id !== $user->id || !in_array($requisition->status, ['Pending', 'Changes Requested'])) {
+            throw new \Exception('Unauthorized or requisition is not in an editable state.');
+        }
+
+        $requisition->update($data);
+        AuditLogService::log($user, 'REQUISITION_UPDATED', 'Requisition details updated.', $requisition->id);
+
+        return $requisition;
     }
 
     /**
@@ -141,5 +160,55 @@ class RequisitionService
         });
     }
 
-    // Add methods for updateRequisition, uploadFinalReceipt, verifyFinalReceipt, etc.
+    /**
+     * Upload final expense receipt.
+     * @param Requisition $requisition
+     * @param string $receiptFileName
+     * @param User $user
+     * @return Requisition
+     */
+    public function uploadFinalReceipt(Requisition $requisition, string $receiptFileName, User $user): Requisition
+    {
+        if ($requisition->requested_by_id !== $user->id || $requisition->status !== 'Awaiting Receipt') {
+            throw new \Exception('Unauthorized or invalid status for receipt upload.');
+        }
+
+        $requisition->final_receipt = [
+            'name' => $receiptFileName,
+            'url' => 'path/to/receipt/' . $receiptFileName, // Mock URL
+            'uploadedAt' => now()->toIso8601String(),
+        ];
+        $requisition->status = 'Pending Finance Verification';
+        $requisition->save();
+
+        AuditLogService::log($user, 'RECEIPT_UPLOADED', 'Final receipt uploaded.', $requisition->id);
+
+        return $requisition;
+    }
+
+    /**
+     * Verify or request correction for final receipt.
+     * @param Requisition $requisition
+     * @param User $user
+     * @param string $action (VERIFY or REJECT)
+     * @param string|null $comments
+     * @return Requisition
+     */
+    public function verifyFinalReceipt(Requisition $requisition, User $user, string $action, string $comments = null): Requisition
+    {
+        if ($user->role !== 'Finance' && $user->role !== 'Auditor') {
+            throw new \Exception('Unauthorized role for receipt verification.');
+        }
+
+        if ($requisition->status !== 'Pending Finance Verification') {
+            throw new \Exception('Requisition is not awaiting verification.');
+        }
+
+        $requisition->status = $action === 'VERIFY' ? 'Completed' : 'Receipt Correction Requested';
+        $requisition->save();
+
+        AuditLogService::log($user, 'RECEIPT_VERIFIED', "Receipt verification: {$action}. {$comments}", $requisition->id);
+
+        return $requisition;
+    }
 }

@@ -20,19 +20,12 @@ class AuditlogController extends Controller
      */
     public function index(Request $request)
     {
-        // Only Super Admin, Auditor, or App Owner can access global logs
-        if (!in_array($request->user()->role, ['Super Admin', 'Auditor', 'App Owner'])) {
-            return response()->json([
-                'message' => 'Unauthorized to view global audit logs.'
-            ], Response::HTTP_FORBIDDEN);
-        }
-
-        // Fetch logs with user, church, and requisition relationships and paginate them
+        // Middleware already handles the base role check, we just fetch and return.
         $logs = AuditLog::with(['user:id,name,email,role', 'church:id,name', 'requisition:id,title'])
             ->latest()
             ->paginate(50);
 
-        return response()->json($logs);
+        return $this->successResponse($logs, 'Audit logs retrieved successfully.');
     }
 
     /**
@@ -46,14 +39,12 @@ class AuditlogController extends Controller
             $request->user()->church_id !== $auditLog->church_id &&
             !in_array($request->user()->role, ['Super Admin', 'Auditor', 'App Owner'])
         ) {
-            return response()->json([
-                'message' => 'Unauthorized to view this audit log.'
-            ], Response::HTTP_FORBIDDEN);
+            return $this->errorResponse('Unauthorized to view this audit log.', Response::HTTP_FORBIDDEN);
         }
 
         // Load relationships for detailed view
         $auditLog->load(['user:id,name,email,role', 'church:id,name', 'requisition:id,title']);
 
-        return response()->json($auditLog);
+        return $this->successResponse($auditLog, 'Audit log retrieved successfully.');
     }
 }

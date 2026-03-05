@@ -101,6 +101,32 @@ class ChurchService
     }
 
     /**
+     * Create a new department within a section.
+     * @param string $sectionId
+     * @param string $name
+     * @param User $user
+     * @return Department
+     * @throws \Exception
+     */
+    public function createDepartment(string $sectionId, string $name, User $user): \App\Models\Department
+    {
+        $section = Section::findOrFail($sectionId);
+
+        if ($user->church_id !== $section->church_id || !in_array($user->role, ['Super Admin', 'Section President'])) {
+            throw new \Exception('Unauthorized to create departments in this section.');
+        }
+
+        $department = \App\Models\Department::create([
+            'section_id' => $sectionId,
+            'name' => $name,
+        ]);
+
+        AuditLogService::log($user, 'DEPARTMENT_CREATED', "New department '{$name}' created in Section ID: {$sectionId}.");
+
+        return $department;
+    }
+
+    /**
      * Get Audit Logs for a church.
      * @param Church $church
      * @param User $user

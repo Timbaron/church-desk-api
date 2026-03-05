@@ -45,13 +45,14 @@ class Requisition extends Model
         'date_needed',
         'status',
         'attachments',
-        'final_receipt_url',
+        'final_receipt',
     ];
 
     protected $casts = [
         'amount_requested' => 'float',
         'date_needed' => 'date',
         'attachments' => 'array',
+        'final_receipt' => 'array',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

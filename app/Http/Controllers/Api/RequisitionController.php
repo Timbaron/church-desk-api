@@ -29,7 +29,7 @@ class RequisitionController extends Controller
         $user = $request->user();
         $requisitions = $this->requisitionService->getRequisitions($user);
 
-        return response()->json($requisitions);
+        return $this->successResponse($requisitions, 'Requisitions retrieved successfully.');
     }
 
     /**
@@ -37,8 +37,7 @@ class RequisitionController extends Controller
      */
     public function show(Requisition $requisition)
     {
-        // Policy check would normally go here to ensure user can view the requisition
-        return response()->json($requisition->load(['approvals', 'payment']));
+        return $this->successResponse($requisition->load(['approvals', 'payment']), 'Requisition details retrieved successfully.');
     }
 
     /**
@@ -48,9 +47,9 @@ class RequisitionController extends Controller
     {
         try {
             $requisition = $this->requisitionService->createRequisition($request->validated(), $request->user());
-            return response()->json($requisition, Response::HTTP_CREATED);
+            return $this->successResponse($requisition, 'Requisition created successfully.', Response::HTTP_CREATED);
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Error creating requisition.'], Response::HTTP_INTERNAL_SERVER_ERROR);
+            return $this->errorResponse('Error creating requisition.', Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -69,11 +68,11 @@ class RequisitionController extends Controller
                 $validated['action'],
                 $validated['comments'] ?? null
             );
-            return response()->json($updatedRequisition);
+            return $this->successResponse($updatedRequisition, 'Action processed successfully.');
         } catch (ValidationException $e) {
-            return response()->json(['message' => $e->getMessage(), 'errors' => $e->errors()], Response::HTTP_UNPROCESSABLE_ENTITY);
+            return $this->errorResponse($e->getMessage(), Response::HTTP_UNPROCESSABLE_ENTITY, $e->errors());
         } catch (\Exception $e) {
-            return response()->json(['message' => $e->getMessage()], Response::HTTP_FORBIDDEN);
+            return $this->errorResponse($e->getMessage(), Response::HTTP_FORBIDDEN);
         }
     }
 
@@ -88,9 +87,31 @@ class RequisitionController extends Controller
                 $request->validated('paymentDetails'), // Client sends { paymentDetails: {...} }
                 $request->user()
             );
-            return response()->json($updatedRequisition);
+            return $this->successResponse($updatedRequisition, 'Payment disbursed successfully.');
         } catch (ValidationException $e) {
-            return response()->json(['message' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
+            return $this->errorResponse($e->getMessage(), Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+    }
+
+    /**
+     * PUT /requisitions/{id} - Update a requisition
+     */
+    public function update(Request $request, Requisition $requisition)
+    {
+        try {
+            // Validation should ideally use a separate FormRequest
+            $validated = $request->validate([
+                'title' => 'sometimes|string|max:255',
+                'amount_requested' => 'sometimes|numeric',
+                'purpose' => 'sometimes|string',
+                'category' => 'sometimes|string',
+                'date_needed' => 'sometimes|date',
+            ]);
+
+            $updatedRequisition = $this->requisitionService->updateRequisition($requisition, $validated, $request->user());
+            return $this->successResponse($updatedRequisition, 'Requisition updated successfully.');
+        } catch (\Exception $e) {
+            return $this->errorResponse($e->getMessage(), Response::HTTP_FORBIDDEN);
         }
     }
 
@@ -101,24 +122,38 @@ class RequisitionController extends Controller
     {
         $request->validate(['receiptFileName' => ['required', 'string']]); // Mocking file upload
 
-        if ($requisition->requested_by_id !== $request->user()->id || $requisition->status !== 'Awaiting Receipt') {
-            return response()->json(['message' => 'Unauthorized or invalid status for receipt upload.'], Response::HTTP_FORBIDDEN);
+        try {
+            $updatedRequisition = $this->requisitionService->uploadFinalReceipt(
+                $requisition,
+                $request->input('receiptFileName'),
+                $request->user()
+            );
+            return $this->successResponse($updatedRequisition, 'Receipt uploaded successfully.');
+        } catch (\Exception $e) {
+            return $this->errorResponse($e->getMessage(), Response::HTTP_FORBIDDEN);
         }
-
-        // In a real app: handle file upload, store path/name
-        $requisition->final_receipt = [
-            'name' => $request->input('receiptFileName'),
-            'url' => 'path/to/receipt/' . $request->input('receiptFileName'), // Mock URL
-            'uploadedAt' => now()->toIso8601String(),
-        ];
-        $requisition->status = 'Pending Finance Verification';
-        $requisition->save();
-
-        // Log the action
-        // AuditLogService::log($request->user(), 'RECEIPT_UPLOADED', 'Final receipt uploaded.', $requisition->id);
-
-        return response()->json($requisition);
     }
 
-    // ... other methods like updateRequisition and verifyFinalReceipt would follow a similar pattern
+    /**
+     * POST /requisitions/{reqId}/verify-receipt - Verify final receipt
+     */
+    public function verifyReceipt(Request $request, Requisition $requisition)
+    {
+        $request->validate([
+            'action' => 'required|in:VERIFY,REJECT',
+            'comments' => 'nullable|string'
+        ]);
+
+        try {
+            $updatedRequisition = $this->requisitionService->verifyFinalReceipt(
+                $requisition,
+                $request->user(),
+                $request->input('action'),
+                $request->input('comments')
+            );
+            return $this->successResponse($updatedRequisition, 'Receipt verified successfully.');
+        } catch (\Exception $e) {
+            return $this->errorResponse($e->getMessage(), Response::HTTP_FORBIDDEN);
+        }
+    }
 }

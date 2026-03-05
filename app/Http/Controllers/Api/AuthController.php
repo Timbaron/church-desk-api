@@ -29,12 +29,9 @@ class AuthController extends Controller
                 $request->input('password')
             );
 
-            return response()->json([
-                'user' => $result['user'],
-                'token' => $result['token'],
-            ]);
+            return $this->successResponse($result, 'Login successful.');
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Login failed: ' . $e->getMessage()], Response::HTTP_UNAUTHORIZED);
+            return $this->errorResponse('Login failed: ' . $e->getMessage(), Response::HTTP_UNAUTHORIZED);
         }
     }
 
@@ -53,10 +50,10 @@ class AuthController extends Controller
         // Automatically log in the new admin user
         $token = $user->createToken('register-token')->plainTextToken;
 
-        return response()->json([
+        return $this->successResponse([
             'user' => $user,
             'token' => $token,
-        ], Response::HTTP_CREATED);
+        ], 'Church registered successfully.', Response::HTTP_CREATED);
     }
 
     /**
@@ -65,6 +62,6 @@ class AuthController extends Controller
     public function logout(Request $request)
     {
         $request->user()->currentAccessToken()->delete();
-        return response()->json(['message' => 'Successfully logged out.'], Response::HTTP_OK);
+        return $this->successResponse(null, 'Successfully logged out.');
     }
 }
