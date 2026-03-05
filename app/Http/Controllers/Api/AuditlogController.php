@@ -20,10 +20,17 @@ class AuditlogController extends Controller
      */
     public function index(Request $request)
     {
-        // Middleware already handles the base role check, we just fetch and return.
-        $logs = AuditLog::with(['user:id,name,email,role', 'church:id,name', 'requisition:id,title'])
-            ->latest()
-            ->paginate(50);
+        $user = $request->user();
+        
+        $query = AuditLog::with(['user:id,name,email,role', 'church:id,name', 'requisition:id,title'])
+            ->latest();
+
+        // If the user is not an App Owner, restrict logs to their church
+        if ($user->role !== 'App Owner') {
+            $query->where('church_id', $user->church_id);
+        }
+
+        $logs = $query->paginate(50);
 
         return $this->successResponse($logs, 'Audit logs retrieved successfully.');
     }
@@ -34,11 +41,10 @@ class AuditlogController extends Controller
      */
     public function show(AuditLog $auditLog, Request $request)
     {
-        // Must belong to the user's church OR be a Super Admin/Auditor/App Owner
-        if (
-            $request->user()->church_id !== $auditLog->church_id &&
-            !in_array($request->user()->role, ['Super Admin', 'Auditor', 'App Owner'])
-        ) {
+        $user = $request->user();
+
+        // Unless the user is an App Owner, the log must belong to their church
+        if ($user->role !== 'App Owner' && $user->church_id !== $auditLog->church_id) {
             return $this->errorResponse('Unauthorized to view this audit log.', Response::HTTP_FORBIDDEN);
         }
 

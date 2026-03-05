@@ -120,12 +120,14 @@ class RequisitionController extends Controller
      */
     public function uploadReceipt(Request $request, Requisition $requisition)
     {
-        $request->validate(['receiptFileName' => ['required', 'string']]); // Mocking file upload
+        $request->validate([
+            'receipt' => ['required', 'file', 'mimes:jpg,jpeg,png,gif,webp,svg,bmp,pdf,doc,docx,xls,xlsx', 'max:10240']
+        ]);
 
         try {
             $updatedRequisition = $this->requisitionService->uploadFinalReceipt(
                 $requisition,
-                $request->input('receiptFileName'),
+                $request->file('receipt'),
                 $request->user()
             );
             return $this->successResponse($updatedRequisition, 'Receipt uploaded successfully.');

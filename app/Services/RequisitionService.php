@@ -54,6 +54,22 @@ class RequisitionService
      */
     public function createRequisition(array $data, User $user): Requisition
     {
+        // Handle file uploads if 'attachments' are present
+        $attachmentData = [];
+        if (isset($data['attachments']) && is_array($data['attachments'])) {
+            foreach ($data['attachments'] as $file) {
+                if ($file instanceof \Illuminate\Http\UploadedFile) {
+                    $path = $file->store('requisitions/attachments', 'public');
+                    $attachmentData[] = [
+                        'name' => $file->getClientOriginalName(),
+                        'url' => asset('storage/' . $path),
+                    ];
+                }
+            }
+        }
+        // Always store as array of processed attachment info, even if empty
+        $data['attachments'] = $attachmentData;
+
         $requisition = Requisition::create([
             ...$data,
             'requested_by_id' => $user->id,
@@ -167,15 +183,17 @@ class RequisitionService
      * @param User $user
      * @return Requisition
      */
-    public function uploadFinalReceipt(Requisition $requisition, string $receiptFileName, User $user): Requisition
+    public function uploadFinalReceipt(Requisition $requisition, \Illuminate\Http\UploadedFile $receiptFile, User $user): Requisition
     {
         if ($requisition->requested_by_id !== $user->id || $requisition->status !== 'Awaiting Receipt') {
             throw new \Exception('Unauthorized or invalid status for receipt upload.');
         }
 
+        $path = $receiptFile->store('requisitions/receipts', 'public');
+
         $requisition->final_receipt = [
-            'name' => $receiptFileName,
-            'url' => 'path/to/receipt/' . $receiptFileName, // Mock URL
+            'name' => $receiptFile->getClientOriginalName(),
+            'url' => asset('storage/' . $path),
             'uploadedAt' => now()->toIso8601String(),
         ];
         $requisition->status = 'Pending Finance Verification';

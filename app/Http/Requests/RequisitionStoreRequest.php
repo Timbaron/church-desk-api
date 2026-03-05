@@ -31,8 +31,7 @@ class RequisitionStoreRequest extends FormRequest
             'purpose' => ['required', 'string'],
             'date_needed' => ['required', 'date_format:Y-m-d', 'after_or_equal:today'],
             'attachments' => ['nullable', 'array'],
-            'attachments.*.name' => ['required_with:attachments', 'string'],
-            'attachments.*.url' => ['required_with:attachments', 'url'],
+            'attachments.*' => ['file', 'mimes:jpg,jpeg,png,gif,webp,svg,bmp,pdf,doc,docx,xls,xlsx', 'max:10240'],
         ];
     }
 }

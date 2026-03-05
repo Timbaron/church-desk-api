@@ -95,16 +95,16 @@ This API follow a standardized response pattern for all endpoints.
 ### Create Requisition
 - **Endpoint**: `POST /api/requisitions`
 - **Auth**: `Sanctum Token`
+- **Content-Type**: `multipart/form-data`
 - **Payload**:
-```json
-{
-    "title": "Repair Generator",
-    "amount_requested": 50000,
-    "category": "Maintenance",
-    "purpose": "Routine generator service",
-    "date_needed": "2026-03-20",
-    "department_id": "uuid"
-}
+```text
+title: "Repair Generator"
+amount_requested: 50000
+category: "Maintenance"
+purpose: "Routine generator service"
+date_needed: "2026-03-20"
+department_id: "uuid"
+attachments[]: (file) // Optional array of files (Max 10MB each)
 ```
 
 ### Process Workflow Action
@@ -136,11 +136,10 @@ This API follow a standardized response pattern for all endpoints.
 ### Upload Receipt
 - **Endpoint**: `POST /api/requisitions/{requisition}/upload-receipt`
 - **Auth**: `Sanctum Token` (Owner)
+- **Content-Type**: `multipart/form-data`
 - **Payload**:
-```json
-{
-    "receiptFileName": "receipt_image.jpg"
-}
+```text
+receipt: (file) // Uploaded file (Max 10MB)
 ```
 
 ### Verify Receipt
