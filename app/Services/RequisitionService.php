@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Department;
 use App\Models\Requisition;
 use App\Models\User;
 use App\Notifications\RequisitionActionNotification;
@@ -56,6 +57,20 @@ class RequisitionService
      */
     public function createRequisition(array $data, User $user): Requisition
     {
+        $department = Department::with('section')->findOrFail($data['department_id']);
+
+        if ($department->section->church_id !== $user->church_id) {
+            throw ValidationException::withMessages([
+                'department_id' => 'The selected department does not belong to your church.',
+            ]);
+        }
+
+        if ($user->role === 'Member' && $user->department_id !== $department->id) {
+            throw ValidationException::withMessages([
+                'department_id' => 'Members can only create requisitions for their own department.',
+            ]);
+        }
+
         // Handle file uploads if 'attachments' are present
         $attachmentData = [];
         if (isset($data['attachments']) && is_array($data['attachments'])) {
@@ -76,7 +91,7 @@ class RequisitionService
             ...$data,
             'requested_by_id' => $user->id,
             'church_id' => $user->church_id,
-            'section_id' => $user->section_id,
+            'section_id' => $department->section_id,
             'status' => 'Pending',
         ]);
 
@@ -111,6 +126,9 @@ class RequisitionService
     public function processWorkflowAction(Requisition $requisition, User $user, string $action, string $comments = null): Requisition
     {
         return DB::transaction(function () use ($requisition, $user, $action, $comments) {
+            $this->assertCanViewRequisition($user, $requisition);
+
+            $normalizedAction = strtoupper($action);
             // Determine the required role for approval/rejection
             $requiredRole = $requisition->status === 'Pending' ? 'Department Head' : ($requisition->status === 'Approved by Dept. Head' ? 'Section President' : null);
 
@@ -119,11 +137,11 @@ class RequisitionService
             }
 
             // Map incoming action to enum values expected by the approvals table
-            $status = match(strtoupper($action)) {
+            $status = match($normalizedAction) {
                 'APPROVE' => 'APPROVED',
                 'REJECT' => 'REJECTED',
                 'REQUEST_CHANGES' => 'REQUESTED_CHANGES',
-                default => strtoupper($action),
+                default => $normalizedAction,
             };
 
             // Create Approval Log using the mapped status
@@ -134,7 +152,7 @@ class RequisitionService
             ]);
 
             // Update Requisition Status
-            $newStatus = match ($action) {
+            $newStatus = match ($normalizedAction) {
                 'APPROVE' => $requiredRole === 'Department Head' ? 'Approved by Dept. Head' : 'Approved by Section President',
                 'REJECT' => 'Rejected',
                 'REQUEST_CHANGES' => 'Changes Requested',
@@ -145,12 +163,12 @@ class RequisitionService
             $requisition->save();
 
             // Log the action
-            AuditLogService::log($user, 'REQUISITION_WORKFLOW', "Requisition {$action} by {$requiredRole}", $requisition->id);
+            AuditLogService::log($user, 'REQUISITION_WORKFLOW', "Requisition {$normalizedAction} by {$requiredRole}", $requisition->id);
 
             // Notify relevant parties
             $requester = $requisition->requestedBy;
             
-            if ($action === 'APPROVE') {
+            if ($normalizedAction === 'APPROVE') {
                 if ($requiredRole === 'Department Head') {
                     // Notify Requester
                     if ($requester) $requester->notify(new RequisitionActionNotification($requisition, 'Requisition Approved by Dept Head', 'Your requisition has been approved by the Department Head.'));
@@ -176,7 +194,7 @@ class RequisitionService
                 }
             } else {
                 // REJECT or REQUEST_CHANGES -> Notify Requester
-                $actionText = $action === 'REJECT' ? 'rejected' : 'returned for changes';
+                $actionText = $normalizedAction === 'REJECT' ? 'rejected' : 'returned for changes';
                 if ($requester) {
                     $requester->notify(new RequisitionActionNotification($requisition, "Requisition " . ucfirst($actionText), "Your requisition was {$actionText} by the {$requiredRole}. Comments: " . ($comments ?? 'None')));
                 }
@@ -215,6 +233,8 @@ class RequisitionService
      */
     public function disbursePayment(Requisition $requisition, array $paymentDetails, User $user): Requisition
     {
+        $this->assertCanViewRequisition($user, $requisition);
+
         if ($user->role !== 'Finance' || $requisition->status !== 'Approved by Section President') {
             throw ValidationException::withMessages(['payment' => 'Only Finance can disburse payment for a fully approved requisition.']);
         }
@@ -235,7 +255,7 @@ class RequisitionService
                 $requisition->requestedBy->notify(new RequisitionActionNotification($requisition, 'Payment Disbursed', "Payment has been disbursed for your requisition. Please upload the receipt once available. Method: {$paymentDetails['payment_method']}"));
             }
 
-            return $requisition->fresh(['payment'])->with('approvals');
+            return $requisition->fresh(['payment', 'approvals']);
         });
     }
 
@@ -248,6 +268,8 @@ class RequisitionService
      */
     public function uploadFinalReceipt(Requisition $requisition, \Illuminate\Http\UploadedFile $receiptFile, User $user): Requisition
     {
+        $this->assertCanViewRequisition($user, $requisition);
+
         if ($requisition->requested_by_id !== $user->id || $requisition->status !== 'Awaiting Receipt') {
             throw new \Exception('Unauthorized or invalid status for receipt upload.');
         }
@@ -286,6 +308,8 @@ class RequisitionService
      */
     public function verifyFinalReceipt(Requisition $requisition, User $user, string $action, string $comments = null): Requisition
     {
+        $this->assertCanViewRequisition($user, $requisition);
+
         if ($user->role !== 'Finance' && $user->role !== 'Auditor') {
             throw new \Exception('Unauthorized role for receipt verification.');
         }
@@ -306,5 +330,34 @@ class RequisitionService
         }
 
         return $requisition;
+    }
+
+    public function getRequisitionForUser(Requisition $requisition, User $user): Requisition
+    {
+        $this->assertCanViewRequisition($user, $requisition);
+
+        return $requisition->load(['approvals', 'payment']);
+    }
+
+    private function assertCanViewRequisition(User $user, Requisition $requisition): void
+    {
+        if ($user->role === 'App Owner') {
+            return;
+        }
+
+        if ($user->church_id !== $requisition->church_id) {
+            throw new \Exception('Unauthorized access to this requisition.');
+        }
+
+        $hasAccess = match ($user->role) {
+            'Member' => $requisition->requested_by_id === $user->id,
+            'Department Head' => $requisition->department_id === $user->department_id,
+            'Section President' => $requisition->section_id === $user->section_id,
+            default => true,
+        };
+
+        if (!$hasAccess) {
+            throw new \Exception('Unauthorized access to this requisition.');
+        }
     }
 }

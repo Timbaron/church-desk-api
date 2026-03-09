@@ -35,9 +35,14 @@ class RequisitionController extends Controller
     /**
      * GET /requisitions/{id} - Get requisition by ID
      */
-    public function show(Requisition $requisition)
+    public function show(Request $request, Requisition $requisition)
     {
-        return $this->successResponse($requisition->load(['approvals', 'payment']), 'Requisition details retrieved successfully.');
+        try {
+            $result = $this->requisitionService->getRequisitionForUser($requisition, $request->user());
+            return $this->successResponse($result, 'Requisition details retrieved successfully.');
+        } catch (\Exception $e) {
+            return $this->errorResponse($e->getMessage(), Response::HTTP_FORBIDDEN);
+        }
     }
 
     /**
@@ -90,6 +95,8 @@ class RequisitionController extends Controller
             return $this->successResponse($updatedRequisition, 'Payment disbursed successfully.');
         } catch (ValidationException $e) {
             return $this->errorResponse($e->getMessage(), Response::HTTP_UNPROCESSABLE_ENTITY);
+        } catch (\Exception $e) {
+            return $this->errorResponse($e->getMessage(), Response::HTTP_FORBIDDEN);
         }
     }
 

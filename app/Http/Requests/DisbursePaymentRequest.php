@@ -7,6 +7,27 @@ use App\Enums\PaymentMethod;
 
 class DisbursePaymentRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        $details = $this->input('paymentDetails', []);
+
+        if (!is_array($details)) {
+            return;
+        }
+
+        $mapped = [
+            'amount_paid' => $details['amount_paid'] ?? $details['amountPaid'] ?? null,
+            'payment_method' => $details['payment_method'] ?? $details['paymentMethod'] ?? null,
+            'payment_date' => $details['payment_date'] ?? $details['paymentDate'] ?? null,
+            'reference_number' => $details['reference_number'] ?? $details['referenceNumber'] ?? null,
+            'proof_file' => $details['proof_file'] ?? $details['proofFile'] ?? null,
+        ];
+
+        $this->merge([
+            'paymentDetails' => array_merge($details, $mapped),
+        ]);
+    }
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -24,13 +45,11 @@ class DisbursePaymentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // Corresponds to the 'paymentDetails' object in the request body
             'paymentDetails' => ['required', 'array'],
             'paymentDetails.amount_paid' => ['required', 'numeric', 'min:0.01'],
             'paymentDetails.payment_method' => [
                 'required',
                 'string',
-                // Validates against the PaymentMethod Enum
                 'in:' . implode(',', array_column(PaymentMethod::cases(), 'value'))
             ],
             'paymentDetails.payment_date' => [
@@ -42,7 +61,6 @@ class DisbursePaymentRequest extends FormRequest
                 'string',
                 'max:255'
             ],
-            // Mock validation for potential file attachment object
             'paymentDetails.proof_file' => ['nullable', 'array'],
             'paymentDetails.proof_file.name' => ['nullable', 'string'],
             'paymentDetails.proof_file.url' => ['nullable', 'string'],
